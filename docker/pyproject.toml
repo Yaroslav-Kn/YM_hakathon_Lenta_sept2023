@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "product demand forecasting"
+version = "0.1.0"
+description = "ml part of a project to predict product demand"
+authors = ["-"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+fastapi = {extras = ["all"], version = "^0.103.1"}
+numpy = "^1.26.0"
+pandas = "^2.1.1"
+datetime = "^5.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
