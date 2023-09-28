@@ -160,3 +160,5 @@ cython_debug/
 #.idea/
 
 /data
+/catboost_info
+*.csv

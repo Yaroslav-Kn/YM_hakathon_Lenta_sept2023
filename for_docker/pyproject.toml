@@ -11,6 +11,8 @@ fastapi = {extras = ["all"], version = "^0.103.1"}
 numpy = "^1.26.0"
 pandas = "^2.1.1"
 datetime = "^5.2"
+scikit-learn = "^1.3.1"
+catboost = "^1.2.2"
 
 
 [build-system]
