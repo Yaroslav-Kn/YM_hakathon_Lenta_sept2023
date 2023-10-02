@@ -1,19 +1,27 @@
 from fastapi import FastAPI
-from .predict import make_predict, get_dict_models
-from .preprocessing import get_df_for_pred, get_df_for_subbmisions, get_cat, preprocessing_st_df
+from predict import make_predict, get_dict_models
+from preprocessing import get_df_for_pred, get_df_for_subbmisions, get_cat, preprocessing_st_df
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+import json
+import requests
+import yaml
+
 import os
 
+# задаём пути и ссылки
 cwd = os.getcwd()
+CONFIG_PATH = 'config.yaml'
+with open(CONFIG_PATH, 'r') as file:
+    config = yaml.load(file, Loader=yaml.FullLoader)
 
-PATH_SALES_DF_TRAIN = cwd + '/src/data/raw/sales_df_train.csv'
-PATH_PR_DF = cwd + '/src/data/raw/pr_df.csv'
-PATH_ST_DF = cwd + '/src/data/raw/st_df.csv'
-PATH_TO_SUMISSION_DF = cwd + '/src/data/sales_submission.csv'
-PATH_TO_HOLIDAYS = cwd + '/src/data/holidays.csv'
-PATH_TO_MODELS= cwd + '/src/models'
+PATH_SALES_DF_TRAIN = cwd + config['PATH_SALES_DF_TRAIN']
+PATH_PR_DF = cwd + config['PATH_PR_DF']
+PATH_ST_DF = cwd + config['PATH_ST_DF']
+PATH_TO_SUMISSION_DF = cwd + config['PATH_TO_SUMISSION_DF']
+PATH_TO_HOLIDAYS = cwd + config['PATH_TO_HOLIDAYS']
+PATH_TO_MODELS= cwd + config['PATH_TO_MODELS']
+
+URL_FOR_READY = config['URL_FOR_READY']
 
 app = FastAPI(title='Product demand forecasting')
 
@@ -73,7 +81,13 @@ def update_predictions(path_sales, path_pr, path_st, path_holidays, path_models,
     predict.to_csv(path_submissions, index=False)
 
 
-@app.get("/health")
+def send_predict_ready() -> None:
+    ''' функция для отправки сообщения, что предикт готов'''
+    url: str = f'{URL_FOR_READY}/api/v1/ready'
+    requests.post(url, json.dumps(True))
+
+
+@app.get("/api/v1/health")
 def health():
     """Функция для проверки работы сервера
     :return: Возвращает статус ok, если сервер работает
@@ -81,10 +95,19 @@ def health():
     return {"status": "ok"}  
 
 
-@app.post("/update_sales")
+@app.get("/api/v1/get_last_date")
+def get_last_date():
+    """Функция для получения последней даты в датасете
+    :return: Возвращает статус ok, если сервер работает
+    """   
+    sales_df_train = pd.read_csv(PATH_SALES_DF_TRAIN)
+    return {"last_date": sales_df_train['date'].max()}  
+
+
+@app.post("/api/v1/update_sales")
 def update_sales(json_row):
     """Функция для вставки новых записей о совершённых продажах и запуска прогноза на 14 дней вперёд 
-    :return: Возвращает статус update sales and submissions completed, если обновление проведено успешно
+    :return: Возвращает статус update sales and submissions completed, если обновление проведено успешно и сообщение на бэк по указаному api
     """    
     update_df_sales(PATH_SALES_DF_TRAIN, json_row)
     update_predictions(PATH_SALES_DF_TRAIN, 
@@ -93,10 +116,11 @@ def update_sales(json_row):
                        PATH_TO_HOLIDAYS, 
                        PATH_TO_MODELS, 
                        PATH_TO_SUMISSION_DF)
+    send_predict_ready()
     return {"status": "update sales and submissions completed"} 
 
 
-@app.get('/get_predict')
+@app.get('/api/v1/get_predict')
 def get_predict():
     """Функция для получения предсказания спроса
     :return: Возвращает json с прогнозами всех товаров на 14 дней вперёд

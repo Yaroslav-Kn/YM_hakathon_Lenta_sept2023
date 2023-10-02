@@ -1,0 +1,8 @@
+URL_FOR_READY: 'http://127.0.0.1:8000'
+
+PATH_SALES_DF_TRAIN: 'data/raw/sales_df_train.csv'
+PATH_PR_DF: '/data/raw/pr_df.csv'
+PATH_ST_DF: '/data/raw/st_df.csv'
+PATH_TO_SUMISSION_DF: '/data/sales_submission.csv'
+PATH_TO_HOLIDAYS: '/data/holidays.csv'
+PATH_TO_MODELS: '/models'

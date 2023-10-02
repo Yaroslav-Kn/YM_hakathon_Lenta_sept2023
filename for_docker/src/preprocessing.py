@@ -1,12 +1,5 @@
 import pandas as pd
-import numpy as np
-
-from catboost import CatBoostRegressor
 from datetime import datetime, timedelta
-
-import pickle
-
-import os
 
 import warnings
 warnings.filterwarnings('ignore')
