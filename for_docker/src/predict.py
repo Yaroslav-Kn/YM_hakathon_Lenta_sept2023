@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 
-
 def get_dict_models (path: str) -> dict:
     """Функция для получения словаря с моделями
     :param path: Путь до папки с моделями
@@ -21,17 +20,27 @@ def get_dict_models (path: str) -> dict:
     return dict_mod
 
 
-def make_predict(df_test, 
-                 df_for_pred, 
-                 st_df, 
-                 pr_df, 
-                 dict_mod, 
-                 not_promo=False, 
-                 return_y_true=False, 
-                 only_st_sku=False):
+def make_predict(df_test: pd.DataFrame, 
+                 df_for_pred: pd.DataFrame, 
+                 st_df: pd.DataFrame, 
+                 pr_df: pd.DataFrame, 
+                 dict_mod: dict, 
+                 not_promo: bool = False, 
+                 return_y_true: bool = False, 
+                 only_st_sku: bool = False) -> pd.DataFrame:
     '''функция разделяет датасет на соответствующие категории, выбирает соответствующую модель и прогнозирует данные,
     имеет возможность указания прогноза с промо и без, возвращать ли y_true, если файл зарпоса сабмита имел соответствующий столбец
-    или возвращать только код магазина, sku товара, дату и прогноз'''
+    или возвращать только код магазина, sku товара, дату и прогноз
+    :param df_test: датасет с данными для прогноза
+    :param df_for_pred: датасет информацией по каким товарам и магазинам нужен прогноз (по умолчанию передаются все существующие сочетания товаров и магазинов)
+    :param st_df: датасет с информацией о товарах
+    :param pr_df: датасет с информацией о магазинах
+    :param dict_mod: словарь с моделями
+    :param not_promo: флаг указывающий, нужно ли возвращать товары по промо
+    :param return_y_true: флаг указывающий, нужно ли возвращать информацию о реальной стоимости товара (если данная ифнормация передавалась в df_for_pred)
+    :param only_st_sku: флаг указывающий, что нужно вернуть только информацию о магазине и товаре (помимо даты и прогноза)
+    :return pr_data: датасет с прогнозом
+    '''
     # получим последнюю дату в датасете
     last_date = df_test.index.max()
     list_models = df_test.loc[last_date, 'group_shop_cat'].unique()

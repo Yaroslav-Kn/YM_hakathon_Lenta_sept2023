@@ -13,8 +13,11 @@ warnings.filterwarnings('ignore')
 
 
 ### Далее функции для обработки датасета по товарам
-def get_cat(df):
-    '''функция для преобразования сочетаний товар-магазин в группа магазина-категория товаров'''
+def get_cat(df: pd.DataFrame) -> pd.DataFrame:
+    '''функция для преобразования сочетаний товар-магазин в группа магазина-категория товаров
+    :param df: сырой датасет с информацией о товарах
+    :return df: Возвращает датасет со столбцом категорий в соответствии с выбранной разбивкой 
+    '''
     df.loc[df['pr_cat_id']=='c559da2ba967eb820766939a658022c8', 'group_cat'] = 'cat_1'
     df.loc[df['pr_subcat_id']=='60787c41b04097dfea76addfccd12243', 'group_cat'] = 'cat_2'
     df.loc[df['pr_subcat_id']=='ca34f669ae367c87f0e75dcae0f61ee5', 'group_cat'] = 'cat_3'
@@ -44,8 +47,12 @@ def get_cat(df):
 
 
 ### Далее функции для обработки датасета по магазинам
-def get_ohe(df, column):   
-    '''функция для OHE, позволяет получить датасет с названими столбцов''' 
+def get_ohe(df: pd.DataFrame, column: list) -> pd.DataFrame:   
+    '''функция для OHE, позволяет получить датасет с названими столбцов
+    :param df: датасет для кодировки OHE
+    :param column: столбцы для кодировки
+    :return df: Возвращает датасет со столбцами закодированными OHE с корректными названиями
+    ''' 
     df_ohe = pd.get_dummies(df[column])
     new_columns = [f'{column}_{c}' for c in df_ohe.columns]
     df_ohe.columns = new_columns
@@ -53,8 +60,11 @@ def get_ohe(df, column):
     df = pd.concat([df, df_ohe], axis=1)
     return df
 
-def do_ohe_and_clear_unective(df):
-    '''функция вызывает OHE  к нужным столбцам магазинов и оставляет только активные магазины'''
+def do_ohe_and_clear_unective(df: pd.DataFrame) -> pd.DataFrame: 
+    '''функция вызывает OHE  к нужным столбцам магазинов и оставляет только активные магазины
+    :param df: сырой датасет с информацией по магазинам
+    :return df: Возвращает датасет обработанный OHE датасет по магазинам
+    ''' 
     list_columns_for_ohe = ['st_city_id', 'st_division_code', 'st_type_format_id', 'st_type_loc_id', 'st_type_size_id']
     for column in list_columns_for_ohe:
         df = get_ohe(df, column)
@@ -63,8 +73,12 @@ def do_ohe_and_clear_unective(df):
     return df
 
 
-def segmentetion_st(df, sales_df_train):
-    '''функция проводит сегментацию магазинов в зависимости от количества средних продаж'''
+def segmentetion_st(df: pd.DataFrame, sales_df_train: pd.DataFrame) -> pd.DataFrame:
+    '''функция проводит сегментацию магазинов в зависимости от количества средних продаж
+    :param df: датасет с информацией по магазинам
+    :param sales_df_train: датасет с информацией о продажах
+    :return df: Возвращает датасет со столбцами сегментации
+    ''' 
     df_st_mean = (sales_df_train.groupby('st_id')['pr_sales_in_units'].agg('mean')
                     .reset_index(drop=False)
                     .sort_values(by='pr_sales_in_units'))
@@ -79,14 +93,24 @@ def segmentetion_st(df, sales_df_train):
     return df
 
 
-def get_df_ts_store(df, store_columns):
+def get_df_ts_store(df: pd.DataFrame, store_columns: str) -> pd.DataFrame:
+    '''функция проводит агрегацию по соответствующему столбцу и делает индекс в дату
+    :param df: датасет с информацией по магазинам
+    :param store_columns: столбец для агрегации
+    :return df_st_id: Возвращает агрегированный датасет
+    ''' 
     df_st_id = df.groupby(['date',store_columns])['pr_sales_in_units'].agg('sum').reset_index(drop=False)
     df_st_id.index = df_st_id['date']
     df_st_id = df_st_id.drop('date', axis=1)
     return df_st_id
 
 
-def preprocessing_st_df(df, sales_df):
+def preprocessing_st_df(df: pd.DataFrame, sales_df: pd.DataFrame) -> pd.DataFrame:
+    '''функция вызывает ряд преобразований написанных выше над датасетом по магазинам    
+    :param df: входящий датасет по магазинам
+    :param sales_df: входящий датасет по продажам
+    :return df: Возвращает обработанный датасет
+    ''' 
     df =  do_ohe_and_clear_unective(df)
     df =  segmentetion_st(df, sales_df)
     df = get_group_st(df, sales_df)
@@ -94,8 +118,13 @@ def preprocessing_st_df(df, sales_df):
     return df
 
 
-def get_rolling_mean(df, group_column, column):
-    '''функция нахоит скользящее среднее за указанный период'''
+def get_rolling_mean(df: pd.DataFrame, group_column: str, column: str) -> pd.DataFrame:
+    '''функция нахоит скользящее среднее за 30 дней
+    :param df: входящий датасет по магазинам
+    :param group_column: столбец для группировки
+    :param column: столбец для расчёта скользящего среднего
+    :return df: Возвращает обработанный датасет
+    '''
     list_group_column = df[group_column].unique()
     for gr_col in list_group_column:
         new_name = f'rolling_mean_{column}'
@@ -107,8 +136,11 @@ def get_rolling_mean(df, group_column, column):
     return df
 
 
-def get_ratio_summer_winter(df):
-    '''функция находит отношение продаж за летний и зимний период'''
+def get_ratio_summer_winter(df: pd.DataFrame) -> pd.DataFrame:
+    '''функция находит отношение продаж за летний и зимний период
+    :param df: входящий датасет
+    :return new_df: Возвращает датасет из id магазина и значения отношения продаж
+    '''
     df_july = df.loc['2023-07-01'][['st_id', 'rolling_mean_pr_sales_in_units']]
     df_jan = df.loc['2023-01-01'][['st_id', 'rolling_mean_pr_sales_in_units']]
     new_df = df_july.merge(df_jan, on='st_id', how='left')
@@ -118,8 +150,12 @@ def get_ratio_summer_winter(df):
     return new_df[['st_id', 'ratio_summer_winter']]
 
 
-def get_group_st(df, sales_df_train):
-    '''функция рассчитывает метрики для разделения магазинов по разным группам на основе продаж, и присоединяет к датасету по магазинам'''
+def get_group_st(df: pd.DataFrame, sales_df_train: pd.DataFrame) -> pd.DataFrame:
+    '''функция рассчитывает метрики для разделения магазинов по разным группам на основе продаж, и присоединяет к датасету по магазинам
+    :param df: входящий датасет по магазинам
+    :param sales_df_train: датасет по продажам
+    :return df: Возвращает датасет по магазинам со столбцом группы
+    '''
     df_st_id = get_df_ts_store(sales_df_train, 'st_id')
     df_st_id = get_rolling_mean(df_st_id, 'st_id', 'pr_sales_in_units')
 
@@ -137,8 +173,13 @@ def get_group_st(df, sales_df_train):
 
 
 ### Далее функции для обработки датасета по продажам
-def get_clear_df(df, var_for_na=0.01, var_for_null=0.01):
-    '''функция очищает датасет от отрицательных значений, восстанавливает все даты для всех товаров, заполняет получившиеся пропуски и 0'''
+def get_clear_df(df: pd.DataFrame, var_for_na: float = 0.01, var_for_null: float = 0.01) -> pd.DataFrame:
+    '''функция очищает датасет от отрицательных значений, восстанавливает все даты для всех товаров, заполняет получившиеся пропуски и 0
+    :param df: входящий датасет
+    :param var_for_na: значение для заполнения пропусков
+    :param var_for_null: значения для замены нулей
+    :return df: обработанный датасет
+    '''
     dict_df = {}     
     df_date = pd.DataFrame(data=df['date'].copy(deep=True).unique(), columns=['date'])
     df_date = df_date.sort_values('date').reset_index(drop=True)
@@ -169,8 +210,13 @@ def get_clear_df(df, var_for_na=0.01, var_for_null=0.01):
     return pd.concat(dict_df.values(),axis=0).sort_values(['date','st_id', 'pr_sku_id'])
 
 
-def get_group_and_agg(df, strareg_agg='mean'):
-    '''Функция для аггрегации данных, поскольку будем модель предсказвает группы категория товара - группа магазинов, а не конкретный магазин'''
+def get_group_and_agg(df: pd.DataFrame, strareg_agg: str='mean') -> pd.DataFrame:
+    '''Функция для аггрегации данных, поскольку будем модель предсказвает группы категория товара - группа магазинов, а не конкретный магазин
+    :param df: входящий датасет
+    :param strareg_agg: функция аггрегации при групперовке
+    :return df: обработанный датасет
+    '''
+   
     group_column = ['st_id', 'group_cat', 'pr_sales_type_id', 'pr_uom_id']
         
     df = (df.groupby(['date', *group_column])['pr_sales_in_units']
@@ -181,8 +227,11 @@ def get_group_and_agg(df, strareg_agg='mean'):
     return df 
 
 
-def get_date_and_weekday(df):
-    '''функция для приведения даты в нужный формат, получения дня недели, отметки, что это выходной день, и флаги для каждого дня недели'''
+def get_date_and_weekday(df: pd.DataFrame) -> pd.DataFrame:
+    '''функция для приведения даты в нужный формат, получения дня недели, отметки, что это выходной день, и флаги для каждого дня недели
+    :param df: входящий датасет
+    :return df: обработанный датасет
+    '''
     df['date'] = pd.to_datetime(df['date'])
     df.index = df['date']
     df['weekday'] = df['date'].dt.weekday 
@@ -193,9 +242,13 @@ def get_date_and_weekday(df):
     return df
 
 
-def get_dict(df, group_column):
+def get_dict(df: pd.DataFrame, group_column: str) -> dict:
     '''функция для преобразования датасета в словарь датасетов (позволяет ускорить работу в дальнейшем, так как 
-    признаки будут высчитываться в рамках одних и тех же групировок (по факту партицирование над пандами))'''
+    признаки будут высчитываться в рамках одних и тех же групировок (по факту партицирование над пандами))
+    :param df: входящий датасет
+    :param group_column: название столбца для группировки
+    :return dict_df: словарь датасетов
+    '''
     dict_df = {}     
     for x in df[group_column].unique():
         new_df = df.loc[df[group_column]==x].copy(deep=True).reset_index(drop=True)
@@ -203,8 +256,13 @@ def get_dict(df, group_column):
     return dict_df
 
 
-def processing_outliers(df, column, threshold):
-    '''функция для удаления выбросов по отношению количеству продаж к скользящему среднему за последние 30 дней'''
+def processing_outliers(df: pd.DataFrame, column: str, threshold: float) -> pd.DataFrame:
+    '''функция для удаления выбросов по отношению количеству продаж к скользящему среднему за последние 30 дней
+    :param df: входящий датасет
+    :param column: столбец для рассчёта значений
+    :param threshold: порог, относительно которого идёт отбрасывание выбросов
+    :return df: обработанный датасет
+    '''
     df['rolling_mean_30'] = (df[column]
                            .shift()
                            .rolling(30)
@@ -216,8 +274,14 @@ def processing_outliers(df, column, threshold):
     return df
 
 
-def get_mean_in_day(df, weekday_column, column, n_week):
-    '''функция для нахождения среднего в конкретный день недели за последние n_week недель'''
+def get_mean_in_day(df: pd.DataFrame, weekday_column: str, column: str, n_week) -> pd.DataFrame:
+    '''функция для нахождения среднего в конкретный день недели за последние n_week недель
+    :param df: входящий датасет
+    :param weekday_column: столбец с номером дня недели
+    :param column: столбец для рассчёта значений
+    :param n_week: количество недель, по которым рассчитывается среднее
+    :return df: обработанный датасет
+    '''
     list_weekday_column = df[weekday_column].unique()
     for day in list_weekday_column: 
         new_name_mean = f'mean_in_weekday_{n_week}_week'  
@@ -229,8 +293,13 @@ def get_mean_in_day(df, weekday_column, column, n_week):
     return df
 
 
-def get_rolling(df, column, n_day_list):  
-    '''функция нахождение скользящих стаитистик (среднего, макимального, миниального) по окнам заданным в n_day_list'''  
+def get_rolling(df: pd.DataFrame, column: str, n_day_list: list) -> pd.DataFrame:
+    '''функция нахождение скользящих стаитистик (среднего, макимального, миниального) по окнам заданным в n_day_list
+    :param df: входящий датасет
+    :param column: столбец для рассчёта значений
+    :param n_day_list: список с количеством дней по которому рассчитываются статистики
+    :return df: обработанный датасет
+    ''' 
     for n_day in n_day_list:
         new_name_mean = f'rolling_mean_{n_day}'
         new_name_max = f'rolling_max_{n_day}'
@@ -257,8 +326,13 @@ def get_rolling(df, column, n_day_list):
     return df
 
 
-def get_lag(df, column, n_day_list):
-    '''функция для получения лагов по списку n_day_list'''
+def get_lag(df: pd.DataFrame, column: str, n_day_list: list) -> pd.DataFrame:
+    '''функция для получения лагов по списку n_day_list
+    :param df: входящий датасет
+    :param column: столбец для рассчёта значений
+    :param n_day_list: список с днями по которым нужно получить лаги
+    :return df: обработанный датасет
+    ''' 
     for n_day in n_day_list:
         new_name = f'lag_{n_day}'
         df[new_name] = (df[column].shift(n_day)) 
@@ -267,8 +341,12 @@ def get_lag(df, column, n_day_list):
     return df
 
 
-def get_features_ny_e_h(df, list_holidays):
-    '''функция для обработки нового года и пасхи'''
+def get_features_ny_e_h(df: pd.DataFrame, list_holidays: list) -> pd.DataFrame:
+    '''функция для обработки нового года и пасхи и праздников
+    :param df: входящий датасет
+    :param list_holidays: список с праздниками с учётом переносов
+    :return df: обработанный датасет
+    ''' 
     #Добавим флаг нового года и пасхи
     df['new_year'] = df.index=='2023-01-01'
     df['easter'] = df.index=='2023-04-16'
@@ -284,8 +362,13 @@ def get_features_ny_e_h(df, list_holidays):
     return df
 
 
-def get_target_diapazon(df, column, n_day, is_train=True):
-    '''функция для получения столбцв с таргетами'''
+def get_target_diapazon(df: pd.DataFrame, n_day: int, is_train: bool=True) -> pd.DataFrame:    
+    '''функция для получения столбцв с таргетами
+    :param df: входящий датасет
+    :param n_day: горизонт прогноза в днях
+    :param is_train: флаг, показывающий обрабатывается тренировочный набор или нет
+    :return df: обработанный датасет
+    ''' 
     df = df.copy(deep = True)
     df = df.rename(columns = {'pr_sales_in_units': 'target_0'})
     if is_train:
@@ -295,21 +378,37 @@ def get_target_diapazon(df, column, n_day, is_train=True):
     return df
 
 
-def get_features_for_ts(df, 
-                        is_train = True, 
-                        n_day_target = 14,
-                        column = 'pr_sales_in_units',
-                        strareg_agg='mean',
-                        var_for_na = 0.01, 
-                        var_for_null = 0,
-                        weekday_column = 'weekday',
-                        n_week_for_lag = 4,
-                        n_day_rolling_list = [7, 14, 30],
-                        n_day_lag_list = list(range(1,15)),
-                        list_holidays = [],
-                        drop_outliers = False, 
-                        threshold = 1.7):
-    '''функция для получения фичей времянного ряда при помощи написанных выше функций'''
+def get_features_for_ts(df: pd.DataFrame, 
+                        is_train: bool = True, 
+                        n_day_target: int = 14,
+                        column: str = 'pr_sales_in_units',
+                        strareg_agg: str='mean',
+                        var_for_na: float = 0.01, 
+                        var_for_null: float = 0,
+                        weekday_column: str = 'weekday',
+                        n_week_for_lag: int = 4,
+                        n_day_rolling_list: list = [7, 14, 30],
+                        n_day_lag_list: list = list(range(1,15)),
+                        list_holidays : list= [],
+                        drop_outliers: bool = False, 
+                        threshold: float = 1.7) -> pd.DataFrame:
+    '''функция для получения фичей времянного ряда при помощи написанных выше функций
+    :param df: входящий датасет
+    :param is_train: флаг, показывающий обрабатывается тренировочный набор или нет
+    :param n_day_target: горизонт прогноза в днях
+    :param column: столбец для рассчёта значений
+    :param strareg_agg: функция аггрегации при групперовке
+    :param var_for_na: значение для заполнения пропусков
+    :param var_for_null: значения для замены нулей
+    :param weekday_column: столбец с номером дня недели
+    :param n_week_for_lag: список с днями по которым нужно получить лаги
+    :param n_day_rolling_list: список с днями по которым нужно получить лаги   
+    :param n_day_lag_list: список с количеством дней по которому рассчитываются статистики
+    :param list_holidays: список с праздниками с учётом переносов
+    :param drop_outliers: флаг, показывающий производить ли очистку выбросов
+    :param threshold: порог, относительно которого идёт отбрасывание выбросов
+    :return df: обработанный датасет
+    ''' 
     df = df.copy(deep = True)
     df = get_clear_df(df, var_for_na, var_for_null)
     df = get_group_and_agg(df, strareg_agg) 
@@ -324,14 +423,19 @@ def get_features_for_ts(df,
         df = get_rolling(df, column, n_day_rolling_list)
         df = get_lag(df, column, n_day_lag_list)
         df = get_features_ny_e_h(df, list_holidays)
-        df = get_target_diapazon(df, column, n_day_target, is_train=is_train)        
+        df = get_target_diapazon(df, n_day_target, is_train=is_train)        
         new_dict[x] = df
         
     return pd.concat(new_dict.values(),axis=0).sort_values(['date','group_column'])
 
 
-def combine_shops_sales(st_df, df_ts, is_train=True):
-    '''функция для объединения датасета продаж с датасетом по магазинам'''
+def combine_shops_sales(st_df, df_ts):
+    '''функция для объединения датасета продаж с датасетом по магазинам
+    :param df_ts: обработанный веремнной ряд по продажам
+    :param st_df: обработанный датасет с информацией по магазинам
+    :param is_train: флаг, показывающий обрабатывается тренировочный набор или нет 
+    :return df: обработанный датасет
+    ''' 
     #объединим получившиеся датасеты, перезададим индексы и удалим пропуски в отсутсвующих торговых центрах
     df = df_ts.merge(st_df, on ='st_id', how='left')
     df.index = df_ts.index
@@ -344,23 +448,41 @@ def combine_shops_sales(st_df, df_ts, is_train=True):
     return df
 
 
-def preproceccing_df(df, 
-                     pr_df, 
-                     st_df, 
-                     is_train = True, 
-                     n_day_target = 14,
-                     column = 'pr_sales_in_units',
-                     strareg_agg='mean',
-                     var_for_na = 0.01, 
-                     var_for_null = 0,
-                     weekday_column = 'weekday',
-                     n_week_for_lag = 4,
-                     n_day_rolling_list = [7, 14, 30],
-                     n_day_lag_list = list(range(1,15)),
-                     list_holidays = [],
-                     drop_outliers = False, 
-                     threshold = 1.7):
-    '''Полная функция предообработки данных'''    
+def preproceccing_df(df: pd.DataFrame, 
+                     pr_df: pd.DataFrame, 
+                     st_df: pd.DataFrame, 
+                     is_train: bool = True, 
+                     n_day_target: int = 14,
+                     column: str = 'pr_sales_in_units',
+                     strareg_agg: str='mean',
+                     var_for_na: float = 0.01, 
+                     var_for_null: float  = 0,
+                     weekday_column: str = 'weekday',
+                     n_week_for_lag : int= 4,
+                     n_day_rolling_list: list = [7, 14, 30],
+                     n_day_lag_list: list = list(range(1,15)),
+                     list_holidays: list = [],
+                     drop_outliers: bool = False, 
+                     threshold: float = 1.7) -> pd.DataFrame:
+    '''Полная функция предообработки данных
+    :param df: входящий датасет по продажам
+    :param st_df: обработанный датасет с информацией по магазинам
+    :param st_df: обработанный датасет с информацией по товарам
+    :param is_train: флаг, показывающий обрабатывается тренировочный набор или нет
+    :param n_day_target: горизонт прогноза в днях
+    :param column: столбец для рассчёта значений
+    :param strareg_agg: функция аггрегации при групперовке
+    :param var_for_na: значение для заполнения пропусков
+    :param var_for_null: значения для замены нулей
+    :param weekday_column: столбец с номером дня недели
+    :param n_week_for_lag: список с днями по которым нужно получить лаги
+    :param n_day_rolling_list: список с днями по которым нужно получить лаги   
+    :param n_day_lag_list: список с количеством дней по которому рассчитываются статистики
+    :param list_holidays: список с праздниками с учётом переносов
+    :param drop_outliers: флаг, показывающий производить ли очистку выбросов
+    :param threshold: порог, относительно которого идёт отбрасывание выбросов
+    :return df: обработанный датасет
+    '''    
     df = df[['st_id', 'pr_sales_type_id', 'pr_sku_id', 'date', 'pr_sales_in_units']]
     df = df.merge(pr_df, on ='pr_sku_id')
     df = get_features_for_ts(df, 
@@ -377,13 +499,23 @@ def preproceccing_df(df,
                              list_holidays = list_holidays,
                              drop_outliers = drop_outliers, 
                              threshold = threshold)    
-    df = combine_shops_sales(st_df, df, is_train)
+    df = combine_shops_sales(st_df, df)
     return df
 
 
-def get_df_for_pred(sales_df_train, pr_df, st_df, list_holidays, df_best_dict):
-    '''функция, позволяет получить готовый датасет для прогноза'''
-
+def get_df_for_pred(sales_df_train: pd.DataFrame, 
+                    pr_df: pd.DataFrame, 
+                    st_df: pd.DataFrame, 
+                    list_holidays: list, 
+                    df_best_dict: dict) -> pd.DataFrame:
+    '''функция, позволяет получить готовый датасет для прогноза
+    :param sales_df_train: необработанный датасет по продажам
+    :param st_df: необработанный датасет с информацией по магазинам
+    :param st_df: необработанный датасет с информацией по товарам   
+    :param list_holidays: список с праздниками с учётом переносов
+    :param df_best_dict: словарь со спискам параметров для обработки датасетов
+    :return df: обработанный датасет
+    '''    
     #преобразуем данные с магазинами и товарами
 
     sales_df_train['date'] = pd.to_datetime(sales_df_train['date'])
@@ -398,7 +530,7 @@ def get_df_for_pred(sales_df_train, pr_df, st_df, list_holidays, df_best_dict):
     df_next_day = df_next_day.reset_index(drop=True)
     df_for_pred = df_for_pred.reset_index(drop=True)
     df_for_pred.loc[len(df_for_pred.index)] = df_next_day.loc[0]
-
+    
      #проводим препроцессинг только для данных, за 30 дней назад так как это максимальные скользящие средние, которые мы используем
     df_pred = preproceccing_df(df_for_pred[df_for_pred['date'] > last_date - timedelta(days=30)].copy(deep=True), 
                                pr_df, 
@@ -411,8 +543,11 @@ def get_df_for_pred(sales_df_train, pr_df, st_df, list_holidays, df_best_dict):
     return df_pred
 
 
-def get_df_for_predict(sales_df_train):  
-    '''функция для получения датасета для предсказаний со всеми встречающимися товарами и магазинами'''
+def get_df_for_subbmisions(sales_df_train: pd.DataFrame) -> pd.DataFrame:  
+    '''функция для получения датасета для предсказаний со всеми встречающимися товарами и магазинами
+    :param sales_df_train: необработанный датасет по продажам
+    :return df: обработанный датасет с уникальными значениями товар- магазин и датами на 14 дней вперёд
+    '''   
     df = sales_df_train[['st_id', 'pr_sku_id']].reset_index(drop=True)
     df = df.drop_duplicates()
     last_date = pd.to_datetime(sales_df_train['date']).max()
