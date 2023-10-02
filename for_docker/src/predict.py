@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 
+
 def get_dict_models (path: str) -> dict:
     """Функция для получения словаря с моделями
     :param path: Путь до папки с моделями
@@ -20,53 +21,90 @@ def get_dict_models (path: str) -> dict:
     return dict_mod
 
 
-def make_predict(path_to_pred_df: str, dict_mod: dict) -> pd.DataFrame:
-    """Функция для получения предсказания модели
-    :param path_to_pred_df: Путь до предобработанного датасета для прогноза
-    :param dict_mod: Словарь с моделями
-    :return predict_df: Датафрейм с прогнозом на 14 дней
-    """   
-    # читаем данные, находим последнюю дату в датасете (по нему будем строить прогноз)
-    df = pd.read_csv(path_to_pred_df, index_col=0)
-    df.index = pd.to_datetime(df.index)
-    last_date = df.index.max()
-    list_models = list(df.loc[last_date, 'group_shop_cat'].unique())
+def make_predict(df_test, 
+                 df_for_pred, 
+                 st_df, 
+                 pr_df, 
+                 dict_mod, 
+                 not_promo=False, 
+                 return_y_true=False, 
+                 only_st_sku=False):
+    '''функция разделяет датасет на соответствующие категории, выбирает соответствующую модель и прогнозирует данные,
+    имеет возможность указания прогноза с промо и без, возвращать ли y_true, если файл зарпоса сабмита имел соответствующий столбец
+    или возвращать только код магазина, sku товара, дату и прогноз'''
+    # получим последнюю дату в датасете
+    last_date = df_test.index.max()
+    list_models = df_test.loc[last_date, 'group_shop_cat'].unique()
 
-    # получаем список дат (потребуется для вывода прогноза)
+    #создадим списко для названия столбцов предикта в соответствии с датами
     list_columns = []
     for i in range(14):
-        list_columns.append(datetime.date(last_date + timedelta(days=i)))
+        list_columns.append(last_date + timedelta(days=i))
 
+    # создадим список для предсказаний и пройдёмся по всем моделям
     list_predict = []
-    # поочерёдно выбираем типы моделей
     for name_model in list_models: 
-        # фильтруем данные для этих моделей
-        df_for_pred = df.loc[(df.index == last_date) & 
-                                  (df['group_shop_cat'] == name_model)]    
-        # если есть подходящие данные, то начинаем прогноз
-        if df_for_pred.shape[0] > 0:
-            if 'target_0' in df_for_pred.columns:
-                X_test = df_for_pred.drop('target_0', axis=1)
-
-            #Запоминаем толбцы товара и магазины (их нужно будет удалить на предикте)
-            sku_df = df_for_pred.loc[last_date, 'pr_sku_id'].reset_index(drop=True)
-            st_df = df_for_pred.loc[last_date, 'st_id'].reset_index(drop=True)
-            X_test = X_test.drop(['group_shop_cat', 'pr_sku_id', 'st_id', 'pr_group_id'],axis=1)
-
-
-            #делаем прогноз
+        df_test_for_pred = df_test[df_test['group_shop_cat'] == name_model].copy(deep=True)   
+        if df_test_for_pred.shape[0] > 0:
+            #Сохраним столбцы, чтобы в дальнейшем их можно было присоединить к датасету
+            group_shop_cat = df_test_for_pred['group_shop_cat'].reset_index(drop=True)
+            pr_sales_type = df_test_for_pred['pr_sales_type_id'].reset_index(drop=True)
+            pr_pr_uom_id = df_test_for_pred['pr_uom_id'].reset_index(drop=True)
+            
+            # сделаем прогноз
+            X_test = df_test_for_pred.drop(['group_shop_cat'],axis=1)
             model = dict_mod[name_model]            
             y_pred = model.predict(X_test)
 
-            # Преобразуем прогноз в требуемый формат
+            # получим широкий датасет, где для каждой строки будет столбец с прогнозом на конкретную дату на 14 дней вперёд
             predictions_data = pd.DataFrame(data=y_pred, columns=list_columns)
-            predictions_data['pr_sku_id'] = sku_df
-            predictions_data['st_id'] = st_df
-            predictions_data = predictions_data.melt(['st_id', 'pr_sku_id'], 
+            predictions_data['group_shop_cat'] = group_shop_cat
+            predictions_data['pr_sales_type_id'] = pr_sales_type
+            predictions_data['pr_uom_id'] = pr_pr_uom_id
+
+            # развернём получившийся датасет в узкую таблицу (поскольку именно в таком формате она нужна по заданию)
+            predictions_data = predictions_data.melt(['group_shop_cat', 'pr_sales_type_id', 'pr_uom_id'], 
                                                      var_name='date', 
                                                      value_name='target')
             list_predict.append(predictions_data)
 
-    predict_df = pd.concat(list_predict,axis=0)
-    predict_df['date'] = predict_df['date'].astype('str')
-    return predict_df
+    # соединим прогнозы каждой из модели
+    pred = pd.concat(list_predict)
+    # получим пересечение всех товаров со всеми магазинами, добавим столбец с таким же названием какой был у моделей
+    # и соединим их с нашим рогнозом
+    st_pr_df = st_df.merge(pr_df, how='cross')
+    st_pr_df['group_shop_cat'] = st_pr_df['group_shop'] + '_' + st_pr_df['group_cat']
+    st_pr_df = st_pr_df.drop(['group_cat', 'group_shop'], axis=1)
+    pr_data = pred.merge(st_pr_df, on='group_shop_cat', how='left')
+    df_for_pred = df_for_pred.merge(pr_df[['pr_sku_id', 'pr_uom_id']], on = 'pr_sku_id', how='left')
+
+    # приведём столбец с датой и прогнозного датасета и датасета с запросом к одному типу, чтобы не было проблем при их соединении
+    pr_data['date'] = pd.to_datetime(pr_data['date'])
+    df_for_pred['date'] = pd.to_datetime(df_for_pred['date'])
+
+    # объединим прогнозный датасет и датасет с запросом на предсказание с учётом того нужно ли возвращать все столбцы
+    if only_st_sku:
+        pr_data = pr_data.merge(df_for_pred, on=['st_id', 'pr_sku_id', 'date'], how='right')                
+    else:
+        pr_data = pr_data.merge(df_for_pred, on=['st_id', 'pr_sku_id', 'date', 'pr_sales_type_id', 'pr_sku_id'], how='right')
+    pr_data = pr_data.fillna(0)
+
+    # обработаем возврат информации по промо
+    if not_promo:
+        pr_data = pr_data[pr_data['pr_sales_type_id'] == 0]
+        return_list = ['st_id', 'pr_sku_id', 'date', 'target']
+        if return_y_true and 'y_true' in pr_data.columns:
+            return_list.append('y_true')
+        pr_data = pr_data[return_list]
+    # сгруппируем данные по столбцам и сагрегируем таргет как среднее
+    # одинаковые записи могу твозник при пересечении разных множеств (например изменение типа продажи товара по штукам или на вес и т.д.) 
+    pr_columns = list(pr_data.columns)
+    pr_columns.remove('target')
+    if not only_st_sku:
+        pr_columns.remove('y_true')
+        pr_data = pr_data.groupby(pr_columns)[['target', 'y_true']].agg('mean').reset_index(drop=False)
+    else:
+        pr_data = pr_data.groupby(pr_columns)[['target']].agg('mean').reset_index(drop=False)
+    pr_data['date'] = pr_data['date'].astype('str')
+
+    return pr_data
