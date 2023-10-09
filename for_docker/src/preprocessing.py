@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-### Далее функции для обработки датасета по товарам
+# Далее функции для обработки датасета по товарам
 def get_cat(df: pd.DataFrame) -> pd.DataFrame:
     '''функция для преобразования сочетаний товар-магазин в группа магазина-категория товаров
     :param df: сырой датасет с информацией о товарах
@@ -40,6 +40,7 @@ def get_cat(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Далее функции для обработки датасета по магазинам
 def get_mean_sale_group(df: pd.DataFrame, sales_df_train: pd.DataFrame) -> pd.DataFrame:
     '''функция проводит сегментацию магазинов в зависимости от количества средних продаж
     :param df: датасет с информацией по магазинам
@@ -153,6 +154,7 @@ def get_st_df(df: pd.DataFrame, sales_df_train: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Далее функции для обработки датасета по продажам
 def get_clear_df(df: pd.DataFrame, df_date: pd.DataFrame, limit_nan: int = 10) -> pd.DataFrame:
     '''функция очищает датасет от отрицательных значений, восстанавливает все даты для всех товаров, заполняет получившиеся пропуски и 0
     :param df: входящий датасет
