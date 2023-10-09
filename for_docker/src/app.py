@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from predict import make_predict, get_dict_models
-from preprocessing import get_df_for_pred, get_df_for_subbmisions, get_cat, preprocessing_st_df
+from predict import prediction_submitions, get_dict_models
+from preprocessing import preproceccing_df
 import pandas as pd
 import json
 import requests
@@ -9,7 +9,7 @@ import yaml
 import os
 
 # задаём пути и ссылки
-cwd = os.getcwd()
+cwd = os.getcwd() 
 CONFIG_PATH = 'config.yaml'
 with open(CONFIG_PATH, 'r') as file:
     config = yaml.load(file, Loader=yaml.FullLoader)
@@ -45,7 +45,7 @@ def update_df_sales(path: str, json_row: list):
     new_df.to_csv(path, index=False)
 
 
-def update_predictions(path_sales, path_pr, path_st, path_holidays, path_models, path_submissions):
+def update_predictions(path_sales, path_pr, path_st, path_holidays, path_models, path_sumissions):
     """Функция для совершения прогноза 14 дней вперёд и записи в файл с предсказаниями 
     :param path_sales: путь к датасету по продажам
     :param path_pr: путь к датасету по товарной иерархии
@@ -59,26 +59,20 @@ def update_predictions(path_sales, path_pr, path_st, path_holidays, path_models,
     pr_df = pd.read_csv(path_pr)
     st_df = pd.read_csv(path_st)
     list_holidays = (pd.read_csv(path_holidays)['holidays'].values)
-    dict_mod = get_dict_models(path_models)   
-    df_best_dict = {'n_day_lag_list': [1, 2, 3, 4, 5, 6, 7],
-                 'n_week_for_lag': 2,
-                 'strareg_agg': 'mean',
-                 'drop_outliers': True,
-                 'threshold': 1.4,
-                 'var_for_null': 0.01,
-                 'var_for_na': 0.01}
-    pr_df = get_cat(pr_df)
-    st_df = preprocessing_st_df(st_df, sales_df_train)
-    df_pred = get_df_for_pred(sales_df_train, pr_df, st_df, list_holidays, df_best_dict)
-    df_for_submissions = get_df_for_subbmisions(sales_df_train)    
-    predict = make_predict(df_pred, 
-                          df_for_submissions, 
-                          st_df, 
-                          pr_df, 
-                          dict_mod, 
-                          not_promo=True, 
-                          only_st_sku=True) 
-    predict.to_csv(path_submissions, index=False)
+    model = get_dict_models(path_models)   
+    df_best_dict = {'n_day_before': 1,
+                    'n_day_lag_list': list(range(1, 21)),
+                    'n_week_for_lag': 2,
+                    'limit_nan': 5}
+    
+    df_pred = preproceccing_df(sales_df_train, 
+                            pr_df, 
+                            st_df, 
+                            list_holidays = list_holidays,
+                            is_train = False,
+                            **df_best_dict)  
+    predict = prediction_submitions(df_pred, model)     
+    predict.to_csv(path_sumissions, index=False)
 
 
 def send_predict_ready() -> None:
